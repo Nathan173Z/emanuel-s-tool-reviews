@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { useEffect } from "react";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -110,6 +111,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    import("@/integrations/firebase/client").catch(() => {});
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
