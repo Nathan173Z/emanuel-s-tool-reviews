@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchPublishedReviewsForHome } from "@/integrations/firebase/database";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { HeroReview } from "@/components/site/HeroReview";
@@ -37,15 +37,10 @@ function Index() {
   const [cat, setCat] = useState<CategoryId>("todas");
 
   useEffect(() => {
-    supabase
-      .from("reviews")
-      .select("id,slug,titulo,url_youtube,categoria,nota,veredito,destaque,custo_beneficio,created_at")
-      .eq("publicado", true)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setReviews((data ?? []) as Review[]);
-        setLoading(false);
-      });
+    fetchPublishedReviewsForHome()
+      .then((data) => setReviews(data as Review[]))
+      .catch(() => setReviews([]))
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -65,7 +60,9 @@ function Index() {
       <Header />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         {loading ? (
-          <div className="flex h-96 items-center justify-center text-muted-foreground">Carregando...</div>
+          <div className="flex h-96 items-center justify-center text-muted-foreground">
+            Carregando...
+          </div>
         ) : reviews.length === 0 ? (
           <EmptyState />
         ) : (
@@ -82,7 +79,9 @@ function Index() {
                 <div className="mb-5 flex items-end justify-between">
                   <div>
                     <h2 className="text-2xl font-bold tracking-tight">Reis do Custo-Benefício</h2>
-                    <p className="text-sm text-muted-foreground">As ferramentas que entregam mais por menos.</p>
+                    <p className="text-sm text-muted-foreground">
+                      As ferramentas que entregam mais por menos.
+                    </p>
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -124,7 +123,11 @@ function EmptyState() {
     <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
       <h2 className="text-xl font-semibold">Nenhum review publicado ainda</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        Acesse <a href="/admin" className="text-primary underline">/admin</a> para criar seu primeiro review.
+        Acesse{" "}
+        <a href="/admin" className="text-primary underline">
+          /admin
+        </a>{" "}
+        para criar seu primeiro review.
       </p>
     </div>
   );
