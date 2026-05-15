@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Check, Star, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchPublishedReviewBySlug, type ReviewDoc } from "@/integrations/firebase/database";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { Newsletter } from "@/components/site/Newsletter";
@@ -9,36 +9,13 @@ import { CATEGORIES } from "@/lib/categories";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface AffiliateLink {
-  url: string;
-  preco?: string;
-}
-interface Review {
-  id: string;
-  slug: string;
-  titulo: string;
-  url_youtube: string;
-  categoria: string;
-  nota: number;
-  veredito: string;
-  pros: string[];
-  contras: string[];
-  links_afiliado: { amazon: AffiliateLink; mercadoLivre: AffiliateLink; shopee: AffiliateLink };
-}
+type Review = ReviewDoc;
 
 export const Route = createFileRoute("/review/$slug")({
   loader: async ({ params: { slug } }) => {
-    const { data, error } = await supabase
-      .from("reviews")
-      .select("*")
-      .eq("slug", slug)
-      .eq("publicado", true)
-      .maybeSingle();
-    if (error) {
-      throw new Error(error.message || `Erro ao carregar o review (${error.code ?? "desconhecido"}).`);
-    }
+    const data = await fetchPublishedReviewBySlug(slug);
     if (!data) throw notFound();
-    return { review: data as unknown as Review };
+    return { review: data };
   },
   pendingComponent: () => (
     <div className="flex min-h-screen flex-col">
@@ -53,7 +30,9 @@ export const Route = createFileRoute("/review/$slug")({
       <Header />
       <main className="mx-auto max-w-2xl flex-1 px-4 py-20 text-center">
         <h1 className="text-3xl font-bold">Review não encontrado</h1>
-        <p className="mt-3 text-muted-foreground">O conteúdo que você buscou não existe ou foi removido.</p>
+        <p className="mt-3 text-muted-foreground">
+          O conteúdo que você buscou não existe ou foi removido.
+        </p>
         <Button asChild className="mt-6">
           <Link to="/">Voltar para a home</Link>
         </Button>
@@ -162,7 +141,11 @@ function ProsCons({ items, type }: { items: string[]; type: "pros" | "contras" }
 function AffiliateButtons({ links }: { links: Review["links_afiliado"] }) {
   const platforms: { key: keyof Review["links_afiliado"]; name: string; cls: string }[] = [
     { key: "amazon", name: "Amazon", cls: "bg-amazon hover:bg-amazon/90 text-black" },
-    { key: "mercadoLivre", name: "Mercado Livre", cls: "bg-mercadolivre hover:bg-mercadolivre/90 text-black" },
+    {
+      key: "mercadoLivre",
+      name: "Mercado Livre",
+      cls: "bg-mercadolivre hover:bg-mercadolivre/90 text-black",
+    },
     { key: "shopee", name: "Shopee", cls: "bg-shopee hover:bg-shopee/90 text-white" },
   ];
   const available = platforms.filter((p) => links?.[p.key]?.url);
