@@ -46,19 +46,31 @@ function AdminPage() {
   useEffect(() => {
     const auth = getFirebaseAuth();
     const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
+      setChecking(true); // Começa a verificação
+      
       if (u) {
-        setChecking(true);
-        setIsAdmin(await isFirebaseAdmin(u.uid));
-        setChecking(false);
+        setUser(u);
+        // VALIDAÇÃO: Troque pelo seu e-mail de administrador
+        const emailAdmin = "ns77362@gmail.com"; 
+
+        if (u.email === emailAdmin) {
+          const adminStatus = await isFirebaseAdmin(u.uid);
+          setIsAdmin(adminStatus);
+        } else {
+          setIsAdmin(false); // Se o e-mail não bater, não é admin
+        }
       } else {
+        setUser(null);
         setIsAdmin(null);
-        setChecking(false);
       }
+      
+      setChecking(false); // Termina a verificação e some o "Verificando acesso..."
     });
+
     return () => unsub();
   }, []);
 
+  // --- Lógica de Renderização ---
   if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
@@ -68,8 +80,10 @@ function AdminPage() {
   }
 
   if (!user) return <LoginScreen />;
+  
   if (!isAdmin) return <NoAccessScreen email={user.email ?? ""} />;
-  return <AdminDashboard email={user.email ?? ""} />;
+
+  return <AdminDashboard email={user.email ?? ""} />; 
 }
 
 /* ---------------- LOGIN ---------------- */
