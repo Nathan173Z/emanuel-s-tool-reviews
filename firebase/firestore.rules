@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if resource.data.publicado == true || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /newsletter_subscribers/{id} {
+      allow create: if request.resource.data.keys().hasAll(['email', 'created_at'])
+        && request.resource.data.email is string
+        && request.resource.data.created_at is string;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+  }
+}

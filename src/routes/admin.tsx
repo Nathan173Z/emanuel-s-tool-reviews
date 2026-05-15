@@ -1,9 +1,25 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { LogOut, Plus, Trash2, ExternalLink } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import {
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  type User,
+} from "firebase/auth";
+import {
+  createReviewDoc,
+  deleteReviewDoc,
+  fetchAllReviewsAdmin,
+  isFirebaseAdmin,
+  type ReviewDoc,
+  type ReviewListItem,
+} from "@/integrations/firebase/database";
+import { getFirebaseAuth } from "@/integrations/firebase/client";
 import { Logo } from "@/components/site/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,46 +35,37 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin")({ component: AdminPage });
 
-type Session = Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"];
-
 function AdminPage() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      if (s?.user) checkAdmin(s.user.id);
-      else { setIsAdmin(null); setChecking(false); }
+    const auth = getFirebaseAuth();
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setChecking(true);
+      if (u) {
+        setUser(u);
+        try {
+          setIsAdmin(await isFirebaseAdmin(u.uid));
+        } catch {
+          setIsAdmin(false);
+        }
+      } else {
+        setUser(null);
+        setIsAdmin(null);
+      }
+      setChecking(false);
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) checkAdmin(data.session.user.id);
-      else setChecking(false);
-    });
-    return () => sub.subscription.unsubscribe();
+    return () => unsub();
   }, []);
-
-  async function checkAdmin(userId: string) {
-    setChecking(true);
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    setIsAdmin(!!data);
-    setChecking(false);
-  }
 
   if (checking) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Verificando acesso...</div>;
   }
-
-  if (!session) return <LoginScreen />;
-  if (!isAdmin) return <NoAccessScreen email={session.user.email ?? ""} />;
-  return <AdminDashboard email={session.user.email ?? ""} />;
+  if (!user) return <LoginScreen />;
+  if (!isAdmin) return <NoAccessScreen email={user.email ?? ""} uid={user.uid} />;
+  return <AdminDashboard email={user.email ?? ""} />;
 }
 
 /* ---------------- LOGIN ---------------- */
@@ -75,32 +82,29 @@ function LoginScreen() {
       email: z.string().trim().email("Email inválido"),
       password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
     }).safeParse({ email, password });
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
+    if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     setLoading(true);
-    if (mode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword(parsed.data);
-      if (error) toast.error(error.message);
-      else toast.success("Bem-vindo!");
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email: parsed.data.email,
-        password: parsed.data.password,
-        options: { emailRedirectTo: window.location.origin + "/admin" },
-      });
-      if (error) toast.error(error.message);
-      else toast.success("Conta criada! Verifique seu e-mail.");
+    const auth = getFirebaseAuth();
+    try {
+      if (mode === "signin") {
+        await signInWithEmailAndPassword(auth, parsed.data.email, parsed.data.password);
+        toast.success("Bem-vindo!");
+      } else {
+        await createUserWithEmailAndPassword(auth, parsed.data.email, parsed.data.password);
+        toast.success("Conta criada!");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao autenticar");
     }
     setLoading(false);
   }
 
   async function google() {
-    const r = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/admin",
-    });
-    if (r.error) toast.error("Não foi possível entrar com Google");
+    try {
+      await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível entrar com Google");
+    }
   }
 
   return (
@@ -134,7 +138,7 @@ function LoginScreen() {
         </Button>
         <p className="mt-6 text-center text-sm text-muted-foreground">
           {mode === "signin" ? "Sem conta?" : "Já tem conta?"}{" "}
-          <button onClick={() => setMode(mode === "signin" ? "signup" : "signin")} className="font-semibold text-primary hover:underline">
+          <button type="button" onClick={() => setMode(mode === "signin" ? "signup" : "signin")} className="font-semibold text-primary hover:underline">
             {mode === "signin" ? "Criar conta" : "Entrar"}
           </button>
         </p>
@@ -146,17 +150,17 @@ function LoginScreen() {
   );
 }
 
-function NoAccessScreen({ email }: { email: string }) {
+function NoAccessScreen({ email, uid }: { email: string; uid: string }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <Logo />
       <h1 className="text-2xl font-bold">Sem permissão de admin</h1>
       <p className="max-w-md text-muted-foreground">
-        Sua conta <strong>{email}</strong> não tem permissão de administrador.
-        Peça ao proprietário do site para conceder o papel "admin" na tabela <code>user_roles</code>.
+        Sua conta <strong>{email}</strong> não tem permissão. No Firebase Console → Firestore, crie o documento{" "}
+        <code className="rounded bg-muted px-1 break-all">admins/{uid}</code> (objeto vazio <code className="rounded bg-muted px-1">{"{}"}</code>) para liberar acesso.
       </p>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => supabase.auth.signOut()}>Sair</Button>
+        <Button variant="outline" onClick={() => signOut(getFirebaseAuth())}>Sair</Button>
         <Button asChild><Link to="/">Voltar à home</Link></Button>
       </div>
     </div>
@@ -165,30 +169,29 @@ function NoAccessScreen({ email }: { email: string }) {
 
 /* ---------------- DASHBOARD ---------------- */
 
-interface ListedReview {
-  id: string; titulo: string; slug: string; categoria: string; publicado: boolean;
-  destaque: boolean; custo_beneficio: boolean; nota: number;
-}
-
 function AdminDashboard({ email }: { email: string }) {
-  const [reviews, setReviews] = useState<ListedReview[]>([]);
-  const navigate = useNavigate();
+  const [reviews, setReviews] = useState<ReviewListItem[]>([]);
 
   async function load() {
-    const { data } = await supabase
-      .from("reviews")
-      .select("id,titulo,slug,categoria,publicado,destaque,custo_beneficio,nota")
-      .order("created_at", { ascending: false });
-    setReviews((data ?? []) as ListedReview[]);
+    try {
+      setReviews(await fetchAllReviewsAdmin());
+    } catch {
+      toast.error("Erro ao carregar reviews");
+      setReviews([]);
+    }
   }
 
   useEffect(() => { load(); }, []);
 
   async function deleteReview(id: string) {
     if (!confirm("Remover este review permanentemente?")) return;
-    const { error } = await supabase.from("reviews").delete().eq("id", id);
-    if (error) toast.error("Erro ao remover");
-    else { toast.success("Review removido"); load(); }
+    try {
+      await deleteReviewDoc(id);
+      toast.success("Review removido");
+      load();
+    } catch {
+      toast.error("Erro ao remover");
+    }
   }
 
   return (
@@ -201,7 +204,7 @@ function AdminDashboard({ email }: { email: string }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden text-xs text-muted-foreground sm:inline">{email}</span>
-            <Button variant="outline" size="sm" onClick={() => supabase.auth.signOut()}>
+            <Button variant="outline" size="sm" onClick={() => signOut(getFirebaseAuth())}>
               <LogOut className="size-4" />
             </Button>
           </div>
@@ -252,26 +255,17 @@ function AdminDashboard({ email }: { email: string }) {
 /* ---------------- FORM ---------------- */
 
 interface FormState {
-  titulo: string;
-  url_youtube: string;
-  categoria: string;
-  nota: string;
-  veredito: string;
-  pros: string;
-  contras: string;
+  titulo: string; url_youtube: string; categoria: string; nota: string; veredito: string;
+  pros: string; contras: string;
   amazon_url: string; amazon_preco: string;
   ml_url: string; ml_preco: string;
   shopee_url: string; shopee_preco: string;
-  destaque: boolean;
-  custo_beneficio: boolean;
+  destaque: boolean; custo_beneficio: boolean;
 }
 
 const EMPTY: FormState = {
-  titulo: "", url_youtube: "", categoria: "eletricas", nota: "0",
-  veredito: "", pros: "", contras: "",
-  amazon_url: "", amazon_preco: "",
-  ml_url: "", ml_preco: "",
-  shopee_url: "", shopee_preco: "",
+  titulo: "", url_youtube: "", categoria: "eletricas", nota: "0", veredito: "", pros: "", contras: "",
+  amazon_url: "", amazon_preco: "", ml_url: "", ml_preco: "", shopee_url: "", shopee_preco: "",
   destaque: false, custo_beneficio: false,
 };
 
@@ -297,15 +291,15 @@ function ReviewForm({ onCreated }: { onCreated: () => void }) {
 
     setSaving(true);
     const slug = `${slugify(form.titulo)}-${Date.now().toString(36).slice(-4)}`;
-    const payload = {
+    const payload: Omit<ReviewDoc, "id" | "created_at" | "updated_at"> = {
       titulo: form.titulo.trim(),
       slug,
       url_youtube: form.url_youtube.trim(),
       categoria: form.categoria,
       nota: parsed.data.nota,
       veredito: form.veredito.trim(),
-      pros: form.pros.split("\n").map(s => s.trim()).filter(Boolean),
-      contras: form.contras.split("\n").map(s => s.trim()).filter(Boolean),
+      pros: form.pros.split("\n").map((s) => s.trim()).filter(Boolean),
+      contras: form.contras.split("\n").map((s) => s.trim()).filter(Boolean),
       links_afiliado: {
         amazon: { url: form.amazon_url.trim(), preco: form.amazon_preco.trim() },
         mercadoLivre: { url: form.ml_url.trim(), preco: form.ml_preco.trim() },
@@ -315,15 +309,15 @@ function ReviewForm({ onCreated }: { onCreated: () => void }) {
       custo_beneficio: form.custo_beneficio,
       publicado,
     };
-    const { error } = await supabase.from("reviews").insert(payload);
-    setSaving(false);
-    if (error) {
-      toast.error("Erro ao salvar: " + error.message);
-      return;
+    try {
+      await createReviewDoc(payload);
+      toast.success(publicado ? "Review publicado!" : "Rascunho salvo!");
+      setForm(EMPTY);
+      onCreated();
+    } catch (err: unknown) {
+      toast.error("Erro ao salvar: " + (err instanceof Error ? err.message : "desconhecido"));
     }
-    toast.success(publicado ? "Review publicado!" : "Rascunho salvo!");
-    setForm(EMPTY);
-    onCreated();
+    setSaving(false);
   }
 
   return (
@@ -344,7 +338,7 @@ function ReviewForm({ onCreated }: { onCreated: () => void }) {
           <Select value={form.categoria} onValueChange={(v) => set("categoria", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {CATEGORIES.filter(c => c.id !== "todas").map((c) => (
+              {CATEGORIES.filter((c) => c.id !== "todas").map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.emoji} {c.label}</SelectItem>
               ))}
             </SelectContent>
@@ -362,7 +356,7 @@ function ReviewForm({ onCreated }: { onCreated: () => void }) {
           </Field>
         </div>
         <Field label="Pontos Positivos (um por linha)">
-          <Textarea rows={4} value={form.pros} onChange={(e) => set("pros", e.target.value)} placeholder="Motor potente&#10;Bateria dura muito&#10;Empunhadura confortável" />
+          <Textarea rows={4} value={form.pros} onChange={(e) => set("pros", e.target.value)} placeholder="Motor potente&#10;Bateria dura muito" />
         </Field>
         <Field label="Pontos Negativos (um por linha)">
           <Textarea rows={4} value={form.contras} onChange={(e) => set("contras", e.target.value)} placeholder="Pesada&#10;Carregador lento" />
@@ -384,12 +378,8 @@ function ReviewForm({ onCreated }: { onCreated: () => void }) {
       </Section>
 
       <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" disabled={saving} onClick={() => save(false)}>
-          Salvar rascunho
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Salvando..." : "Publicar review"}
-        </Button>
+        <Button type="button" variant="outline" disabled={saving} onClick={() => save(false)}>Salvar rascunho</Button>
+        <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Publicar review"}</Button>
       </div>
     </form>
   );
