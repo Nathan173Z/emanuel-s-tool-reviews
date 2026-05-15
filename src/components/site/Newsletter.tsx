@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { subscribeNewsletterEmail } from "@/integrations/firebase/database";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -18,17 +18,19 @@ export function Newsletter() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase
-      .from("newsletter_subscribers")
-      .insert({ email: parsed.data.email });
-    setLoading(false);
-    if (error) {
-      if (error.code === "23505") toast.success("Você já está inscrito!");
-      else toast.error("Não foi possível inscrever. Tente novamente.");
-      return;
+    try {
+      const result = await subscribeNewsletterEmail(parsed.data.email);
+      setLoading(false);
+      if (result === "duplicate") {
+        toast.success("Você já está inscrito!");
+        return;
+      }
+      toast.success("Inscrição confirmada! Fique de olho no seu e-mail.");
+      setEmail("");
+    } catch {
+      setLoading(false);
+      toast.error("Não foi possível inscrever. Tente novamente.");
     }
-    toast.success("Inscrição confirmada! Fique de olho no seu e-mail.");
-    setEmail("");
   }
 
   return (
