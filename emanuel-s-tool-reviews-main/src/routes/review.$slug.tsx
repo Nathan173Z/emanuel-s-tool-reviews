@@ -34,7 +34,9 @@ export const Route = createFileRoute("/review/$slug")({
       .eq("slug", slug)
       .eq("publicado", true)
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      throw new Error(error.message || `Erro ao carregar o review (${error.code ?? "desconhecido"}).`);
+    }
     if (!data) throw notFound();
     return { review: data as unknown as Review };
   },
