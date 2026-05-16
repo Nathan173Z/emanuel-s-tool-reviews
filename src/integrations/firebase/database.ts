@@ -8,7 +8,6 @@ import {
   query,
   setDoc,
   where,
-  orderBy,
 } from "firebase/firestore";
 import { getFirebaseDb } from "./client";
 
@@ -68,16 +67,28 @@ export async function fetchPublishedReviewsForHome(): Promise<
     | "created_at"
   >[]
 > {
-  // Query simples sem filtros/orderBy para evitar problemas de índice composto no Firestore.
-  const snap = await getDocs(reviewsCol());
-  const items = snap.docs.map((d) => {
-    const x = d.data() as Omit<ReviewDoc, "id">;
-    return { id: d.id, ...x };
-  });
-  // Filtra publicados e ordena por created_at desc no cliente (tolerante a campos ausentes).
-  return items
-    .filter((r) => r.publicado === true || r.publicado === undefined)
-    .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  // Query pública exatamente alinhada às regras/campos do Firestore: apenas reviews publicados.
+  // Sem orderBy para não depender de índice e para tolerar documentos sem created_at.
+  const q = query(reviewsCol(), where("publicado", "==", true));
+  const snap = await getDocs(q);
+
+  return snap.docs
+    .map((d) => {
+      const x = d.data() as Partial<ReviewDoc>;
+      return {
+        id: d.id,
+        slug: x.slug || d.id,
+        titulo: x.titulo || "Review sem título",
+        url_youtube: x.url_youtube || "",
+        categoria: x.categoria || "outras",
+        nota: Number(x.nota ?? 0),
+        veredito: x.veredito || "",
+        destaque: Boolean(x.destaque),
+        custo_beneficio: Boolean(x.custo_beneficio),
+        created_at: x.created_at || x.updated_at || "",
+      };
+    })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /** Um review publicado por slug (suporta doc id == slug e docs antigos com id aleatório). */
