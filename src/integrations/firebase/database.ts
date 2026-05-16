@@ -68,12 +68,16 @@ export async function fetchPublishedReviewsForHome(): Promise<
     | "created_at"
   >[]
 > {
-  const q = query(reviewsCol(), where("publicado", "==", true), orderBy("created_at", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
+  // Query simples sem filtros/orderBy para evitar problemas de índice composto no Firestore.
+  const snap = await getDocs(reviewsCol());
+  const items = snap.docs.map((d) => {
     const x = d.data() as Omit<ReviewDoc, "id">;
     return { id: d.id, ...x };
   });
+  // Filtra publicados e ordena por created_at desc no cliente (tolerante a campos ausentes).
+  return items
+    .filter((r) => r.publicado === true || r.publicado === undefined)
+    .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 }
 
 /** Um review publicado por slug (suporta doc id == slug e docs antigos com id aleatório). */
@@ -100,12 +104,16 @@ export async function fetchPublishedReviewBySlug(slug: string): Promise<ReviewDo
 
 /** Painel admin: todos os reviews. Requer utilizador autenticado com regras Firestore adequadas. */
 export async function fetchAllReviewsAdmin(): Promise<ReviewListItem[]> {
-  const q = query(reviewsCol(), orderBy("created_at", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const x = d.data() as Omit<ReviewListItem, "id">;
+  const snap = await getDocs(reviewsCol());
+  const items = snap.docs.map((d) => {
+    const x = d.data() as Omit<ReviewListItem, "id"> & { created_at?: string };
     return { id: d.id, ...x };
   });
+  return items.sort((a, b) =>
+    ((b as { created_at?: string }).created_at ?? "").localeCompare(
+      (a as { created_at?: string }).created_at ?? "",
+    ),
+  );
 }
 
 export async function createReviewDoc(
