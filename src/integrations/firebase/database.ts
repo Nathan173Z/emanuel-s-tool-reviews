@@ -76,8 +76,15 @@ export async function fetchPublishedReviewsForHome(): Promise<
   });
 }
 
-/** Um review publicado por slug (SSR + cliente). */
+/** Um review publicado por slug (suporta doc id == slug e docs antigos com id aleatório). */
 export async function fetchPublishedReviewBySlug(slug: string): Promise<ReviewDoc | null> {
+  // 1) Tenta direto pelo ID do documento (nova estrutura)
+  const direct = await getDoc(doc(getFirebaseDb(), "reviews", slug));
+  if (direct.exists()) {
+    const data = direct.data() as Omit<ReviewDoc, "id">;
+    if (data.publicado) return { id: direct.id, ...data };
+  }
+  // 2) Fallback: docs antigos com ID aleatório, busca pelo campo slug
   const q = query(
     reviewsCol(),
     where("slug", "==", slug),
