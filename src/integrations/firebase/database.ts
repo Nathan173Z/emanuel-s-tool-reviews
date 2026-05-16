@@ -67,10 +67,8 @@ export async function fetchPublishedReviewsForHome(): Promise<
     | "created_at"
   >[]
 > {
-  // Query pública exatamente alinhada às regras/campos do Firestore: apenas reviews publicados.
-  // Sem orderBy para não depender de índice e para tolerar documentos sem created_at.
-  const q = query(reviewsCol(), where("publicado", "==", true));
-  const snap = await getDocs(q);
+  // Leitura direta da coleção para teste/produção sem filtros compostos nem orderBy.
+  const snap = await getDocs(reviewsCol());
 
   return snap.docs
     .map((d) => {
@@ -86,9 +84,11 @@ export async function fetchPublishedReviewsForHome(): Promise<
         destaque: Boolean(x.destaque),
         custo_beneficio: Boolean(x.custo_beneficio),
         created_at: x.created_at || x.updated_at || "",
+        publicado: x.publicado === true,
       };
     })
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    .filter((r) => r.publicado === true)
+    .map(({ publicado: _publicado, ...review }) => review);
 }
 
 /** Um review publicado por slug (suporta doc id == slug e docs antigos com id aleatório). */
