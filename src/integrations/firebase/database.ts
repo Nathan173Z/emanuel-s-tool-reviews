@@ -76,8 +76,15 @@ export async function fetchPublishedReviewsForHome(): Promise<
   });
 }
 
-/** Um review publicado por slug (SSR + cliente). */
+/** Um review publicado por slug (suporta doc id == slug e docs antigos com id aleatório). */
 export async function fetchPublishedReviewBySlug(slug: string): Promise<ReviewDoc | null> {
+  // 1) Tenta direto pelo ID do documento (nova estrutura)
+  const direct = await getDoc(doc(getFirebaseDb(), "reviews", slug));
+  if (direct.exists()) {
+    const data = direct.data() as Omit<ReviewDoc, "id">;
+    if (data.publicado) return { id: direct.id, ...data };
+  }
+  // 2) Fallback: docs antigos com ID aleatório, busca pelo campo slug
   const q = query(
     reviewsCol(),
     where("slug", "==", slug),
@@ -104,14 +111,39 @@ export async function fetchAllReviewsAdmin(): Promise<ReviewListItem[]> {
 export async function createReviewDoc(
   payload: Omit<ReviewDoc, "id" | "created_at" | "updated_at">,
 ): Promise<void> {
-  const id = doc(reviewsCol()).id;
+  const slug = payload.slug?.trim();
+  if (!slug) throw new Error("Slug é obrigatório para criar o review.");
+
+  const ref = doc(getFirebaseDb(), "reviews", slug);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    throw new Error(`Já existe um review com o slug "${slug}".`);
+  }
+
   const now = new Date().toISOString();
-  await setDoc(doc(getFirebaseDb(), "reviews", id), {
+  await setDoc(ref, {
     ...payload,
-    id,
+    id: slug,
+    slug,
     created_at: now,
     updated_at: now,
   });
+}
+
+export async function fetchReviewByIdOrSlug(idOrSlug: string): Promise<ReviewDoc | null> {
+  // 1) tenta como ID do documento (nova estrutura: doc id == slug)
+  const direct = await getDoc(doc(getFirebaseDb(), "reviews", idOrSlug));
+  if (direct.exists()) {
+    const data = direct.data() as Omit<ReviewDoc, "id">;
+    return { id: direct.id, ...data };
+  }
+  // 2) fallback: documentos antigos com ID aleatório, busca por campo slug
+  const q = query(reviewsCol(), where("slug", "==", idOrSlug), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  const data = d.data() as Omit<ReviewDoc, "id">;
+  return { id: d.id, ...data };
 }
 
 export async function deleteReviewDoc(id: string): Promise<void> {
