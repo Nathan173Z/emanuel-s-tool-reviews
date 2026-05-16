@@ -104,12 +104,16 @@ export async function fetchPublishedReviewBySlug(slug: string): Promise<ReviewDo
 
 /** Painel admin: todos os reviews. Requer utilizador autenticado com regras Firestore adequadas. */
 export async function fetchAllReviewsAdmin(): Promise<ReviewListItem[]> {
-  const q = query(reviewsCol(), orderBy("created_at", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const x = d.data() as Omit<ReviewListItem, "id">;
+  const snap = await getDocs(reviewsCol());
+  const items = snap.docs.map((d) => {
+    const x = d.data() as Omit<ReviewListItem, "id"> & { created_at?: string };
     return { id: d.id, ...x };
   });
+  return items.sort((a, b) =>
+    ((b as { created_at?: string }).created_at ?? "").localeCompare(
+      (a as { created_at?: string }).created_at ?? "",
+    ),
+  );
 }
 
 export async function createReviewDoc(
