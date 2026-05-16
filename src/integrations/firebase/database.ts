@@ -68,12 +68,16 @@ export async function fetchPublishedReviewsForHome(): Promise<
     | "created_at"
   >[]
 > {
-  const q = query(reviewsCol(), where("publicado", "==", true), orderBy("created_at", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
+  // Query simples sem filtros/orderBy para evitar problemas de índice composto no Firestore.
+  const snap = await getDocs(reviewsCol());
+  const items = snap.docs.map((d) => {
     const x = d.data() as Omit<ReviewDoc, "id">;
     return { id: d.id, ...x };
   });
+  // Filtra publicados e ordena por created_at desc no cliente (tolerante a campos ausentes).
+  return items
+    .filter((r) => r.publicado === true || r.publicado === undefined)
+    .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 }
 
 /** Um review publicado por slug (suporta doc id == slug e docs antigos com id aleatório). */
