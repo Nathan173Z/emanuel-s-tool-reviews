@@ -10,7 +10,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { getFirebaseDb } from "./client";
+import { firebaseConfig, getFirebaseDb } from "./client";
 
 export type AffiliateLink = { url: string; preco?: string };
 export type LinksAfiliado = {
@@ -61,6 +61,47 @@ function withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   ]);
 }
 
+function firestoreValueToJson(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const field = value as Record<string, unknown>;
+  if ("stringValue" in field) return field.stringValue;
+  if ("booleanValue" in field) return field.booleanValue;
+  if ("integerValue" in field) return Number(field.integerValue);
+  if ("doubleValue" in field) return Number(field.doubleValue);
+  if ("nullValue" in field) return null;
+  if ("arrayValue" in field) {
+    const values = (field.arrayValue as { values?: unknown[] }).values ?? [];
+    return values.map(firestoreValueToJson);
+  }
+  if ("mapValue" in field) {
+    const fields = (field.mapValue as { fields?: Record<string, unknown> }).fields ?? {};
+    return Object.fromEntries(Object.entries(fields).map(([key, item]) => [key, firestoreValueToJson(item)]));
+  }
+  return undefined;
+}
+
+async function fetchReviewsViaRest(): Promise<Array<Partial<ReviewDoc> & { id: string }>> {
+  const url = new URL(
+    `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/reviews`,
+  );
+  url.searchParams.set("key", firebaseConfig.apiKey);
+
+  const response = await withTimeout(fetch(url.toString()));
+  if (!response.ok) throw new Error(`Erro REST Firestore: ${response.status}`);
+
+  const payload = (await response.json()) as {
+    documents?: Array<{ name: string; fields?: Record<string, unknown> }>;
+  };
+
+  return (payload.documents ?? []).map((document) => {
+    const id = document.name.split("/").pop() || "";
+    const data = Object.fromEntries(
+      Object.entries(document.fields ?? {}).map(([key, item]) => [key, firestoreValueToJson(item)]),
+    ) as Partial<ReviewDoc>;
+    return { id, ...data };
+  });
+}
+
 /** Reviews publicados para a home (lista). */
 export async function fetchPublishedReviewsForHome(): Promise<
   Pick<
@@ -78,14 +119,15 @@ export async function fetchPublishedReviewsForHome(): Promise<
   >[]
 > {
   // Leitura direta da coleção para teste/produção sem filtros compostos nem orderBy.
-  const snap = await withTimeout(getDocsFromServer(reviewsCol()));
+  const docs = await withTimeout(getDocsFromServer(reviewsCol()))
+    .then((snap) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as Partial<ReviewDoc>) })))
+    .catch(fetchReviewsViaRest);
 
-  return snap.docs
-    .map((d) => {
-      const x = d.data() as Partial<ReviewDoc>;
+  return docs
+    .map((x) => {
       return {
-        id: d.id,
-        slug: x.slug || d.id,
+        id: x.id,
+        slug: x.slug || x.id,
         titulo: x.titulo || "Review sem título",
         url_youtube: x.url_youtube || "",
         categoria: x.categoria || "outras",
