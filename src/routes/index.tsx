@@ -34,12 +34,22 @@ function Index() {
   const { q } = Route.useSearch();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [cat, setCat] = useState<CategoryId>("todas");
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError(false);
     fetchPublishedReviewsForHome()
-      .then((data) => setReviews(data as Review[]))
-      .catch(() => setReviews([]))
+      .then((data) => {
+        setReviews(data as Review[]);
+        setLoadError(false);
+      })
+      .catch((error) => {
+        console.error("Erro ao carregar reviews publicados:", error);
+        setReviews([]);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -63,6 +73,8 @@ function Index() {
           <div className="flex h-96 items-center justify-center text-muted-foreground">
             Carregando...
           </div>
+        ) : loadError ? (
+          <LoadErrorState />
         ) : reviews.length === 0 ? (
           <EmptyState />
         ) : (
@@ -114,6 +126,17 @@ function Index() {
         )}
       </main>
       <Footer />
+    </div>
+  );
+}
+
+function LoadErrorState() {
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
+      <h2 className="text-xl font-semibold">Não foi possível carregar os reviews</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Verifique as variáveis do Firebase na Vercel e as regras de leitura do Firestore.
+      </p>
     </div>
   );
 }
