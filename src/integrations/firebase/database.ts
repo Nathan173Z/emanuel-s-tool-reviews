@@ -56,7 +56,7 @@ function withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => {
-      window.setTimeout(() => reject(new Error("Tempo esgotado ao carregar reviews.")), ms);
+      globalThis.setTimeout(() => reject(new Error("Tempo esgotado ao carregar reviews.")), ms);
     }),
   ]);
 }
