@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   limit,
   query,
   setDoc,
@@ -51,6 +52,15 @@ function reviewsCol() {
   return collection(getFirebaseDb(), "reviews");
 }
 
+function withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Tempo esgotado ao carregar reviews.")), ms);
+    }),
+  ]);
+}
+
 /** Reviews publicados para a home (lista). */
 export async function fetchPublishedReviewsForHome(): Promise<
   Pick<
@@ -68,7 +78,7 @@ export async function fetchPublishedReviewsForHome(): Promise<
   >[]
 > {
   // Leitura direta da coleção para teste/produção sem filtros compostos nem orderBy.
-  const snap = await getDocs(reviewsCol());
+  const snap = await withTimeout(getDocsFromServer(reviewsCol()));
 
   return snap.docs
     .map((d) => {
