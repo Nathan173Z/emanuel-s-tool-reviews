@@ -3,7 +3,7 @@ import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBVyTqJHpRXr4s2J6w0D0hc7NjzwvRHcms",
   authDomain: "emanuel-solucoes.firebaseapp.com",
   projectId: "emanuel-solucoes",
