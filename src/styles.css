@@ -45,21 +45,21 @@
   --card-foreground: oklch(0.97 0.001 285);
   --popover: oklch(0.215 0.003 285);
   --popover-foreground: oklch(0.97 0.001 285);
-  /* Construction yellow #FFB800 */
-  --primary: oklch(0.82 0.17 85);
+  /* Electric lightning blue */
+  --primary: oklch(0.72 0.18 240);
   --primary-foreground: oklch(0.18 0.002 285);
   --secondary: oklch(0.25 0.003 285);
   --secondary-foreground: oklch(0.97 0.001 285);
   --muted: oklch(0.25 0.003 285);
   --muted-foreground: oklch(0.72 0.008 285); /* #A8A8B3 */
-  --accent: oklch(0.82 0.17 85);
+  --accent: oklch(0.72 0.18 240);
   --accent-foreground: oklch(0.18 0.002 285);
   --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
   /* Translucent 1px white 5% border */
   --border: oklch(1 0 0 / 5%);
   --input: oklch(1 0 0 / 8%);
-  --ring: oklch(0.82 0.17 85);
+  --ring: oklch(0.72 0.18 240);
   --success: oklch(0.65 0.16 145);
 
   /* Marketplace colors */
