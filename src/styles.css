@@ -59,7 +59,7 @@
   /* Translucent 1px white 5% border */
   --border: oklch(1 0 0 / 5%);
   --input: oklch(1 0 0 / 8%);
-  --ring: oklch(0.82 0.17 85);
+  --ring: oklch(0.72 0.18 240);
   --success: oklch(0.65 0.16 145);
 
   /* Marketplace colors */
