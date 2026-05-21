@@ -45,7 +45,7 @@ export function Newsletter() {
         <p className="mt-3 text-sm text-primary-foreground/80 sm:text-base">
           Sem spam. Apenas as melhores ofertas e os reviews mais recentes.
         </p>
-        <form onSubmit={submit} className="mt-6 flex flex-col gap-2 sm:flex-row">
+        <form onSubmit={submit} className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <input
             type="email"
             required
@@ -58,7 +58,7 @@ export function Newsletter() {
             type="submit"
             disabled={loading}
             variant="secondary"
-            className="h-11 px-6 font-semibold bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+            className="h-11 w-full shrink-0 px-6 font-semibold bg-primary-foreground text-primary hover:bg-primary-foreground/90 sm:w-auto"
           >
             {loading ? "Enviando..." : "Inscrever"}
           </Button>

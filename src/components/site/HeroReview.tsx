@@ -54,7 +54,11 @@ export function HeroReview({ review }: Props) {
             <p className="text-base text-muted-foreground">{review.veredito}</p>
           )}
           <div className="pt-2">
-            <Button asChild size="lg" className="gap-2 font-semibold">
+            <Button
+              asChild
+              size="lg"
+              className="gap-2 font-semibold transition-all duration-200 hover:scale-105 active:scale-95"
+            >
               <Link to="/review/$slug" params={{ slug: review.slug }}>
                 <Play className="size-4 fill-current" />
                 Assistir Review Completo
