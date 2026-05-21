@@ -20,7 +20,7 @@ export function ReviewCard({ review, badge }: { review: Review; badge?: boolean 
     <Link
       to="/review/$slug"
       params={{ slug: review.slug }}
-      className="group block overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg"
+      className="group block overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
     >
       <div className="relative aspect-video overflow-hidden bg-muted">
         {thumb && (
@@ -65,10 +65,10 @@ export function ReviewCardCompact({ review }: { review: Review }) {
     <Link
       to="/review/$slug"
       params={{ slug: review.slug }}
-      className="group flex gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/30"
+      className="group flex gap-3 rounded-xl border border-border bg-card p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
     >
-      <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-md bg-muted sm:w-40">
-        {thumb && <img src={thumb} alt={review.titulo} className="h-full w-full object-cover" loading="lazy" />}
+      <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-muted sm:w-40">
+        {thumb && <img src={thumb} alt={review.titulo} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />}
       </div>
       <div className="flex min-w-0 flex-col justify-between py-0.5">
         <div>
