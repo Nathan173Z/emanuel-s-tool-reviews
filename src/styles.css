@@ -45,8 +45,8 @@
   --card-foreground: oklch(0.97 0.001 285);
   --popover: oklch(0.215 0.003 285);
   --popover-foreground: oklch(0.97 0.001 285);
-  /* Construction yellow #FFB800 */
-  --primary: oklch(0.82 0.17 85);
+  /* Electric lightning blue */
+  --primary: oklch(0.72 0.18 240);
   --primary-foreground: oklch(0.18 0.002 285);
   --secondary: oklch(0.25 0.003 285);
   --secondary-foreground: oklch(0.97 0.001 285);
